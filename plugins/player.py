@@ -40,61 +40,75 @@ async def add_to_playlist(_, message: Message):
     if message.reply_to_message and message.reply_to_message.video:
         msg = await message.reply_text("⚡️ **Checking Telegram Media...**")
         type='video'
-        m_video = message.reply_to_message.video       
+        m_video = message.reply_to_message.video
     elif message.reply_to_message and message.reply_to_message.document:
         msg = await message.reply_text("⚡️ **Checking Telegram Media...**")
-        m_video = message.reply_to_message.document
         type='video'
-        if not "video" in m_video.mime_type:
+        m_video = message.reply_to_message.document
+        if "video" not in m_video.mime_type:
             return await msg.edit("The given file is invalid")
-    else:
-        if message.reply_to_message:
-            link=message.reply_to_message.text
-            regex = r"^(?:https?:\/\/)?(?:www\.)?youtu\.?be(?:\.com)?\/?.*(?:watch|embed)?(?:.*v=|v\/|\/)([\w\-_]+)\&?"
-            match = re.match(regex,link)
-            if match:
-                type="youtube"
-                yturl=link
-        elif " " in message.text:
-            text = message.text.split(" ", 1)
-            query = text[1]
-            regex = r"^(?:https?:\/\/)?(?:www\.)?youtu\.?be(?:\.com)?\/?.*(?:watch|embed)?(?:.*v=|v\/|\/)([\w\-_]+)\&?"
-            match = re.match(regex,query)
-            if match:
-                type="youtube"
-                yturl=query
-            else:
-                type="query"
-                ysearch=query
+    elif message.reply_to_message:
+        link=message.reply_to_message.text
+        regex = r"^(?:https?:\/\/)?(?:www\.)?youtu\.?be(?:\.com)?\/?.*(?:watch|embed)?(?:.*v=|v\/|\/)([\w\-_]+)\&?"
+        if match := re.match(regex, link):
+            type="youtube"
+            yturl=link
+    elif " " in message.text:
+        text = message.text.split(" ", 1)
+        query = text[1]
+        regex = r"^(?:https?:\/\/)?(?:www\.)?youtu\.?be(?:\.com)?\/?.*(?:watch|embed)?(?:.*v=|v\/|\/)([\w\-_]+)\&?"
+        if match := re.match(regex, query):
+            type="youtube"
+            yturl=query
         else:
-            await message.reply_text("You Didn't gave me anything to play.Reply to a video or a youtube link.")
-            return
+            type="query"
+            ysearch=query
+    else:
+        await message.reply_text("You Didn't gave me anything to play.Reply to a video or a youtube link.")
+        return
     user=f"[{message.from_user.first_name}](tg://user?id={message.from_user.id})"
-    if type=="video":
+    if type == "query":
+        try:
+            msg = await message.reply_text("⚡️ **Fetching Video From YouTube...**")
+            ytquery=ysearch
+            results = YoutubeSearch(ytquery, max_results=1).to_dict()
+            url = f"https://youtube.com{results[0]['url_suffix']}"
+            title = results[0]["title"][:40]
+        except Exception as e:
+            await msg.edit(
+                "Song not found.\nTry inline mode.."
+            )
+            LOGGER.error(str(e))
+            return
+        ydl_opts = {
+            "geo-bypass": True,
+            "nocheckcertificate": True
+        }
+        ydl = YoutubeDL(ydl_opts)
+        try:
+            info = ydl.extract_info(url, False)
+        except Exception as e:
+            LOGGER.error(e)
+            await msg.edit(
+                f"YouTube Download Error ❌\nError:- {e}"
+                )
+            LOGGER.error(str(e))
+            return
+        title = info["title"]
+        now = datetime.now()
+        nyav = now.strftime("%d-%m-%Y-%H:%M:%S")
+        data={1:title, 2:url, 3:"youtube", 4:user, 5:f"{nyav}_{message.from_user.id}"}
+        Config.playlist.append(data)
+        await msg.edit(f"[{title}]({url}) added to playist", disable_web_page_preview=True)
+    elif type == "video":
         now = datetime.now()
         nyav = now.strftime("%d-%m-%Y-%H:%M:%S")
         data={1:m_video.file_name, 2:m_video.file_id, 3:"telegram", 4:user, 5:f"{nyav}_{m_video.file_size}"}
         Config.playlist.append(data)
         await msg.edit("Media added to playlist")
-    if type=="youtube" or type=="query":
-        if type=="youtube":
-            msg = await message.reply_text("⚡️ **Fetching Video From YouTube...**")
-            url=yturl
-        elif type=="query":
-            try:
-                msg = await message.reply_text("⚡️ **Fetching Video From YouTube...**")
-                ytquery=ysearch
-                results = YoutubeSearch(ytquery, max_results=1).to_dict()
-                url = f"https://youtube.com{results[0]['url_suffix']}"
-                title = results[0]["title"][:40]
-            except Exception as e:
-                await msg.edit(
-                    "Song not found.\nTry inline mode.."
-                )
-                LOGGER.error(str(e))
-                return
-        else:
-            return
+    elif type == "youtube":
+        msg = await message.reply_text("⚡️ **Fetching Video From YouTube...**")
+        url=yturl
         ydl_opts = {
             "geo-bypass": True,
             "nocheckcertificate": True
@@ -121,12 +135,12 @@ async def add_to_playlist(_, message: Message):
         await play()
         await m_status.delete()
     else:
-        await send_playlist()  
+        await send_playlist()
     pl=await get_playlist_str()
     if message.chat.type == "private":
         await message.reply(pl, reply_markup=await get_buttons() ,disable_web_page_preview=True)        
     elif not Config.LOG_GROUP and message.chat.type == "supergroup":
-        await message.reply(pl, disable_web_page_preview=True, reply_markup=await get_buttons())          
+        await message.reply(pl, disable_web_page_preview=True, reply_markup=await get_buttons())
     for track in Config.playlist[:2]:
         await download(track)
 
@@ -144,13 +158,12 @@ async def leave_voice_chat(_, m: Message):
 async def shuffle_play_list(client, m: Message):
     if not Config.CALL_STATUS:
         return await m.reply("Not joined any voicechat.")
+    if len(Config.playlist) > 2:
+        await m.reply_text("Playlist Shuffled.")
+        await shuffle_playlist()
+
     else:
-        if len(Config.playlist) > 2:
-            await m.reply_text(f"Playlist Shuffled.")
-            await shuffle_playlist()
-            
-        else:
-            await m.reply_text(f"You cant shuffle playlist with less than 3 songs.")
+        await m.reply_text("You cant shuffle playlist with less than 3 songs.")
 
 
 @Client.on_message(filters.command(["clearplaylist", f"clearplaylist@{Config.BOT_USERNAME}"]) & admin_filter & (filters.chat(Config.CHAT) | filters.private))
@@ -158,9 +171,9 @@ async def clear_play_list(client, m: Message):
     if not Config.CALL_STATUS:
         return await m.reply("Not joined any voicechat.")
     if not Config.playlist:
-        return await m.reply("Playlist is empty. May be Live streaming.")  
-    Config.playlist.clear()   
-    await m.reply_text(f"Playlist Cleared.")
+        return await m.reply("Playlist is empty. May be Live streaming.")
+    Config.playlist.clear()
+    await m.reply_text("Playlist Cleared.")
     await start_stream()
 
 
@@ -199,8 +212,7 @@ async def stream(client, m: Message):
     else:
         return await m.reply("Provide a link to stream!")
     regex = r"^(?:https?:\/\/)?(?:www\.)?youtu\.?be(?:\.com)?\/?.*(?:watch|embed)?(?:.*v=|v\/|\/)([\w\-_]+)\&?"
-    match = re.match(regex,link)
-    if match:
+    if match := re.match(regex, link):
         stream_link=await get_link(link)
         if not stream_link:
             return await m.reply("This is an invalid link.")

@@ -87,7 +87,6 @@ async def get_logs(client, message):
             await message.reply_media_group(logs)
         except:
             await message.reply("Errors occured while uploading log file.")
-            pass
         logs.clear()
     else:
         await message.reply("No log files found.")
@@ -99,10 +98,10 @@ async def set_heroku_var(client, message):
         await message.reply(
             text="No heroku app found, this command needs the following heroku vars to be set.\n\n1. <code>HEROKU_API_KEY</code>: Your heroku account api key.\n2. <code>HEROKU_APP_NAME</code>: Your heroku app name.", 
             reply_markup=InlineKeyboardMarkup(buttons)) 
-        return     
+        return
     if " " in message.text:
         cmd, env = message.text.split(" ", 1)
-        if  not "=" in env:
+        if "=" not in env:
             return await message.reply("You should specify the value for env.\nExample: /env CHAT=-100213658211")
         var, value = env.split("=", 2)
         config = Config.HEROKU_APP.config()
@@ -119,7 +118,7 @@ async def set_heroku_var(client, message):
         if var in config:
             m=await message.reply(f"Variable already found. Now edited to {value}")
         else:
-            m=await message.reply(f"Variable not found, Now setting as new var.")
+            m = await message.reply("Variable not found, Now setting as new var.")
         await asyncio.sleep(2)
         await m.edit(f"Succesfully set {var} with value {value}, Now Restarting to take effect of changes...")
         config[var] = str(value)

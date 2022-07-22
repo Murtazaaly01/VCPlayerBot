@@ -126,15 +126,13 @@ async def join_call(audio, video, width, height, seek=False):
     else:
         if not seek:
             Config.DUR["TIME"]=time.time()
-        old=Config.GET_FILE.get("old")
-        if old:
+        if old := Config.GET_FILE.get("old"):
             for file in old:
                 os.remove(f"./downloads/{file}")
             try:
                 del Config.GET_FILE["old"]
             except:
                 LOGGER.error("Error in deletion")
-                pass
         await send_playlist()
 
 
@@ -155,7 +153,7 @@ async def join_and_play(audio, video, width, height):
                     height=height,
                     frame_rate=30,
                 ),
-                
+
             ),
             stream_type=StreamType().local_stream
         )
@@ -172,7 +170,6 @@ async def join_and_play(audio, video, width, height):
             await restart_playout()
         except Exception as e:
             LOGGER.error(f"Unable to start new GroupCall :- {e}")
-            pass
     except Exception as e:
         LOGGER.error(f"Errors Occured while joining, retrying Error- {e}")
         return False
@@ -206,28 +203,26 @@ async def change_file(audio, video, width, height):
 
 
 async def seek_file(seektime):
-    if not (Config.playlist or Config.STREAM_LINK):
+    if not Config.playlist and not Config.STREAM_LINK:
         return False, "No Supported stream found for seeeking."
-    play_start=int(float(Config.DUR.get('TIME')))
-    if not play_start:
+    if not (play_start := int(float(Config.DUR.get('TIME')))):
         return False, "Player not yet started"
-    else:
-        data=Config.DATA.get("FILE_DATA")
-        if not data:
-            return False, "No Streams for seeking"        
-        played=int(float(time.time())) - int(float(play_start))
-        if data.get("dur", 0) == 0:
-            return False, "Seems like a live sttream or startup stream is playing."
-        total=int(float(data.get("dur", 0)))
-        trimend = total - played - int(seektime)
-        trimstart = played + int(seektime)
-        if trimstart > total:
-            return False, "Seeked duration exceeds maximum duration of file"
-        new_play_start=int(play_start) - int(seektime)
-        Config.DUR['TIME']=new_play_start
-        raw_audio, raw_video, width, height = await get_raw_files(data.get("file"), seek={"start":trimstart, "end":trimend})
-        await join_call(raw_audio, raw_video, width, height, seek=True)
-        return True, None
+    data=Config.DATA.get("FILE_DATA")
+    if not data:
+        return False, "No Streams for seeking"
+    played=int(float(time.time())) - int(float(play_start))
+    if data.get("dur", 0) == 0:
+        return False, "Seems like a live sttream or startup stream is playing."
+    total=int(float(data.get("dur", 0)))
+    trimend = total - played - int(seektime)
+    trimstart = played + int(seektime)
+    if trimstart > total:
+        return False, "Seeked duration exceeds maximum duration of file"
+    new_play_start = play_start - int(seektime)
+    Config.DUR['TIME']=new_play_start
+    raw_audio, raw_video, width, height = await get_raw_files(data.get("file"), seek={"start":trimstart, "end":trimend})
+    await join_call(raw_audio, raw_video, width, height, seek=True)
+    return True, None
     
 
 
@@ -268,8 +263,7 @@ async def restart_playout():
         await start_stream()
         return
     LOGGER.warning(f"RESTART PLAYING: {Config.playlist[0][1]}")
-    data=Config.DATA.get('FILE_DATA')
-    if data:
+    if data := Config.DATA.get('FILE_DATA'):
         audio_file, video_file, width, height = await get_raw_files(data['file'])
         await sleep(1)
         if Config.STREAM_LINK:
@@ -334,26 +328,35 @@ async def get_link(file):
                 continue
         if url:
             return url
-        else:
-            LOGGER.error(f"Errors occured while getting link from youtube video - No Video Formats Found")
-            await skip()
-            return False
+        LOGGER.error(
+            "Errors occured while getting link from youtube video - No Video Formats Found"
+        )
+
+        await skip()
+        return False
 
 
 
 async def download(song, msg=None):
-    if song[3] == "telegram":
-        if not Config.GET_FILE.get(song[5]):
-            try: 
-                original_file = await bot.download_media(song[2], progress=progress_bar, file_name=f'./tgdownloads/', progress_args=(int((song[5].split("_"))[1]), time.time(), msg))
+    if song[3] != "telegram":
+        return
+    if not Config.GET_FILE.get(song[5]):
+        try: 
+            original_file = await bot.download_media(
+                song[2],
+                progress=progress_bar,
+                file_name='./tgdownloads/',
+                progress_args=(int((song[5].split("_"))[1]), time.time(), msg),
+            )
 
-                Config.GET_FILE[song[5]]=original_file
-            except Exception as e:
-                LOGGER.error(e)
-                Config.playlist.remove(song)
-                if len(Config.playlist) <= 1:
-                    return
-                await download(Config.playlist[1])
+
+            Config.GET_FILE[song[5]]=original_file
+        except Exception as e:
+            LOGGER.error(e)
+            Config.playlist.remove(song)
+            if len(Config.playlist) <= 1:
+                return
+            await download(Config.playlist[1])
    
 
 
@@ -401,33 +404,30 @@ async def get_raw_files(link, seek=False):
 
 
 async def kill_process():
-    process = Config.FFMPEG_PROCESSES.get(Config.CHAT)
-    if process:
+    if not (process := Config.FFMPEG_PROCESSES.get(Config.CHAT)):
+        return
+    try:
+        process.send_signal(SIGINT)
         try:
-            process.send_signal(SIGINT)
-            try:
-                await asyncio.shield(asyncio.wait_for(process.wait(), 5))
-            except CancelledError:
-                pass
-            if process.returncode is None:
-                process.kill()
-            try:
-                await asyncio.shield(
-                    asyncio.wait_for(process.wait(), 5))
-            except CancelledError:
-                pass
-        except ProcessLookupError:
+            await asyncio.shield(asyncio.wait_for(process.wait(), 5))
+        except CancelledError:
             pass
-        except Exception as e:
-            LOGGER.error(e)
-        del Config.FFMPEG_PROCESSES[Config.CHAT]
+        if process.returncode is None:
+            process.kill()
+        try:
+            await asyncio.shield(
+                asyncio.wait_for(process.wait(), 5))
+        except CancelledError:
+            pass
+    except ProcessLookupError:
+        pass
+    except Exception as e:
+        LOGGER.error(e)
+    del Config.FFMPEG_PROCESSES[Config.CHAT]
 
 
 async def edit_title():
-    if not Config.playlist:
-        title = "Live Stream"
-    else:       
-        title = Config.playlist[0][1]
+    title = Config.playlist[0][1] if Config.playlist else "Live Stream"
     try:
         chat = await USER.resolve_peer(Config.CHAT)
         full_chat=await USER.send(
@@ -442,7 +442,6 @@ async def edit_title():
         await USER.send(edit)
     except Exception as e:
         LOGGER.error(f"Errors Occured while editing title - {e}")
-        pass
 
 
 
@@ -597,7 +596,6 @@ async def get_admins(chat):
                 admins.append(administrator.user.id)
         except Exception as e:
             LOGGER.error(f"Errors occured while getting admin list - {e}")
-            pass
         Config.ADMINS=admins
         Config.ADMIN_CACHE=True
     return admins
@@ -607,66 +605,78 @@ async def is_admin(_, client, message: Message):
     admins = await get_admins(Config.CHAT)
     if message.from_user is None and message.sender_chat:
         return True
-    if message.from_user.id in admins:
-        return True
-    else:
-        return False
+    return message.from_user.id in admins
 
 
 async def get_playlist_str():
     if not Config.playlist:
         pl = f"🔈 Playlist is empty. Streaming [STARTUP_STREAM]({Config.STREAM_URL})"
-    else:
-        if len(Config.playlist)>=25:
-            tplaylist=Config.playlist[:25]
-            pl=f"Listing first 25 songs of total {len(Config.playlist)} songs.\n"
-            pl += f"▶️ **Playlist**:\n" + "\n".join([
-                f"**{i}**. **🎸{x[1]}**\n   👤**Requested by:** {x[4]}"
-                for i, x in enumerate(tplaylist)
-                ])
-            tplaylist.clear()
-        else:
-            pl = f"▶️ **Playlist**:\n" + "\n".join([
-                f"**{i}**. **🎸{x[1]}**\n   👤**Requested by:** {x[4]}\n"
-                for i, x in enumerate(Config.playlist)
+    elif len(Config.playlist)>=25:
+        tplaylist=Config.playlist[:25]
+        pl=f"Listing first 25 songs of total {len(Config.playlist)} songs.\n"
+        pl += f"▶️ **Playlist**:\n" + "\n".join([
+            f"**{i}**. **🎸{x[1]}**\n   👤**Requested by:** {x[4]}"
+            for i, x in enumerate(tplaylist)
             ])
+        tplaylist.clear()
+    else:
+        pl = f"▶️ **Playlist**:\n" + "\n".join([
+            f"**{i}**. **🎸{x[1]}**\n   👤**Requested by:** {x[4]}\n"
+            for i, x in enumerate(Config.playlist)
+        ])
     return pl
 
 
 async def get_buttons():
     data=Config.DATA.get("FILE_DATA")
-    if data.get('dur', 0) == 0:
-        reply_markup=InlineKeyboardMarkup(
+    return (
+        InlineKeyboardMarkup(
             [
                 [
-                    InlineKeyboardButton(f"{get_player_string()}", callback_data="player"),
+                    InlineKeyboardButton(
+                        f"{get_player_string()}", callback_data="player"
+                    ),
                 ],
                 [
-                    InlineKeyboardButton(f"⏯ {get_pause(Config.PAUSE)}", callback_data=f"{get_pause(Config.PAUSE)}"),
-                    InlineKeyboardButton(f"{'🔇 Unmute' if Config.MUTED else '🔊 Mute'}", callback_data='mute'),
+                    InlineKeyboardButton(
+                        f"⏯ {get_pause(Config.PAUSE)}",
+                        callback_data=f"{get_pause(Config.PAUSE)}",
+                    ),
+                    InlineKeyboardButton(
+                        f"{'🔇 Unmute' if Config.MUTED else '🔊 Mute'}",
+                        callback_data='mute',
+                    ),
                 ],
             ]
-            )
-    else:
-        reply_markup=InlineKeyboardMarkup(
+        )
+        if data.get('dur', 0) == 0
+        else InlineKeyboardMarkup(
             [
                 [
-                    InlineKeyboardButton(f"{get_player_string()}", callback_data='player'),
+                    InlineKeyboardButton(
+                        f"{get_player_string()}", callback_data='player'
+                    ),
                 ],
                 [
                     InlineKeyboardButton("⏮ Rewind", callback_data='rewind'),
-                    InlineKeyboardButton(f"⏯ {get_pause(Config.PAUSE)}", callback_data=f"{get_pause(Config.PAUSE)}"),
-                    InlineKeyboardButton(f"⏭ Seek", callback_data='seek'),
+                    InlineKeyboardButton(
+                        f"⏯ {get_pause(Config.PAUSE)}",
+                        callback_data=f"{get_pause(Config.PAUSE)}",
+                    ),
+                    InlineKeyboardButton("⏭ Seek", callback_data='seek'),
                 ],
                 [
-                    InlineKeyboardButton(f"{'🔇 Unmute' if Config.MUTED else '🔊 Mute'}", callback_data='mute'),
+                    InlineKeyboardButton(
+                        f"{'🔇 Unmute' if Config.MUTED else '🔊 Mute'}",
+                        callback_data='mute',
+                    ),
                     InlineKeyboardButton("🔄 Shuffle", callback_data="shuffle"),
                     InlineKeyboardButton("⏩ Skip", callback_data="skip"),
                     InlineKeyboardButton("⏮ Replay", callback_data="replay"),
                 ],
             ]
-            )
-    return reply_markup
+        )
+    )
 
 
 async def progress_bar(current, zero, total, start, msg):
@@ -678,10 +688,11 @@ async def progress_bar(current, zero, total, start, msg):
         percentage = current * 100 / total
         time_to_complete = round(((total - current) / speed)) * 1000
         time_to_complete = TimeFormatter(time_to_complete)
-        progressbar = "[{0}{1}]".format(\
-            ''.join(["▰" for i in range(math.floor(percentage / 5))]),
-            ''.join(["▱" for i in range(20 - math.floor(percentage / 5))])
-            )
+        progressbar = "[{0}{1}]".format(
+            ''.join(["▰" for _ in range(math.floor(percentage / 5))]),
+            ''.join(["▱" for _ in range(20 - math.floor(percentage / 5))]),
+        )
+
         current_message = f"**Downloading** {round(percentage, 2)}% \n{progressbar}\n⚡️ **Speed**: {humanbytes(speed)}/s\n⬇️ **Downloaded**: {humanbytes(current)} / {humanbytes(total)}\n🕰 **Time Left**: {time_to_complete}"
         if msg:
             try:
@@ -714,8 +725,7 @@ def get_height_and_width(file):
 @timeout(10)
 def get_duration(file):
     try:
-        total=ffmpeg.probe(file)['format']['duration']
-        return total
+        return ffmpeg.probe(file)['format']['duration']
     except:
         return 0
 
@@ -728,7 +738,7 @@ def humanbytes(size):
     while size > power:
         size /= power
         n += 1
-    return str(round(size, 2)) + " " + Dic_powerN[n] + 'B'
+    return f"{str(round(size, 2))} {Dic_powerN[n]}B"
 
 
 def get_player_string():
@@ -743,24 +753,27 @@ def get_player_string():
         dur=played
     played = round(now-start)
     percentage = played * 100 / dur
-    progressbar = "▷ {0}◉{1}".format(\
-            ''.join(["━" for i in range(math.floor(percentage / 5))]),
-            ''.join(["─" for i in range(20 - math.floor(percentage / 5))])
-            )
-    finaal=f"{convert(played)}   {progressbar}    {convert(dur)}"
-    return finaal
+    progressbar = "▷ {0}◉{1}".format(
+        ''.join(["━" for _ in range(math.floor(percentage / 5))]),
+        ''.join(["─" for _ in range(20 - math.floor(percentage / 5))]),
+    )
+
+    return f"{convert(played)}   {progressbar}    {convert(dur)}"
 
 
 def TimeFormatter(milliseconds: int) -> str:
-    seconds, milliseconds = divmod(int(milliseconds), 1000)
+    seconds, milliseconds = divmod(milliseconds, 1000)
     minutes, seconds = divmod(seconds, 60)
     hours, minutes = divmod(minutes, 60)
     days, hours = divmod(hours, 24)
-    tmp = ((str(days) + " days, ") if days else "") + \
-        ((str(hours) + " hours, ") if hours else "") + \
-        ((str(minutes) + " min, ") if minutes else "") + \
-        ((str(seconds) + " sec, ") if seconds else "") + \
-        ((str(milliseconds) + " millisec, ") if milliseconds else "")
+    tmp = (
+        (f"{str(days)} days, " if days else "")
+        + (f"{str(hours)} hours, " if hours else "")
+        + (f"{str(minutes)} min, " if minutes else "")
+        + (f"{str(seconds)} sec, " if seconds else "")
+        + (f"{str(milliseconds)} millisec, " if milliseconds else "")
+    )
+
     return tmp[:-2]
 
 
@@ -773,10 +786,7 @@ def convert(seconds):
     return "%d:%02d:%02d" % (hour, minutes, seconds)
 
 def get_pause(status):
-    if status == True:
-        return "Resume"
-    else:
-        return "Pause"
+    return "Resume" if status == True else "Pause"
 
 
 def stop_and_restart():
@@ -810,11 +820,9 @@ async def handler(client: PyTgCalls, update: Update):
         Config.DUR['PAUSE'] = time.time()
         Config.PAUSE=True
     elif str(update) == "RESUMED_STREAM":
-        pause=Config.DUR.get('PAUSE')
-        if pause:
+        if pause := Config.DUR.get('PAUSE'):
             diff = time.time() - pause
-            start=Config.DUR.get('TIME')
-            if start:
+            if start := Config.DUR.get('TIME'):
                 Config.DUR['TIME']=start+diff
         Config.PAUSE=False
     elif str(update) == 'MUTED_STREAM':
@@ -825,22 +833,18 @@ async def handler(client: PyTgCalls, update: Update):
 
 @group_call.on_stream_end()
 async def handler(client: PyTgCalls, update: Update):
-    if str(update) == "STREAM_AUDIO_ENDED" or str(update) == "STREAM_VIDEO_ENDED":
-        if not Config.STREAM_END.get("STATUS"):
-            Config.STREAM_END["STATUS"]=str(update)
-            if Config.STREAM_LINK and len(Config.playlist) == 0:
-                await stream_from_link(Config.STREAM_LINK)
-            elif not Config.playlist:
-                await start_stream()
-            else:
-                await skip()          
-            await sleep(15) #wait for max 15 sec
-            try:
-                del Config.STREAM_END["STATUS"]
-            except:
-                pass
+    if str(update) not in ["STREAM_AUDIO_ENDED", "STREAM_VIDEO_ENDED"]:
+        return
+    if not Config.STREAM_END.get("STATUS"):
+        Config.STREAM_END["STATUS"]=str(update)
+        if Config.STREAM_LINK and len(Config.playlist) == 0:
+            await stream_from_link(Config.STREAM_LINK)
+        elif not Config.playlist:
+            await start_stream()
         else:
-            try:
-                del Config.STREAM_END["STATUS"]
-            except:
-                pass
+            await skip()
+        await sleep(15) #wait for max 15 sec
+    try:
+        del Config.STREAM_END["STATUS"]
+    except:
+        pass

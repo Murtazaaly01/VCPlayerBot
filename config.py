@@ -31,87 +31,85 @@ Y_PLAY=False
 YSTREAM=False
 STREAM=os.environ.get("STARTUP_STREAM", "https://www.youtube.com/watch?v=zcrUCvBD16k")
 regex = r"^(?:https?:\/\/)?(?:www\.)?youtu\.?be(?:\.com)?\/?.*(?:watch|embed)?(?:.*v=|v\/|\/)([\w\-_]+)\&?"
-match = re.match(regex,STREAM)
-if match:
-    YSTREAM=True
-    finalurl=STREAM
-    LOGGER.warning("YouTube Stream is set as STARTUP STREAM")
+if match := re.match(regex, STREAM):
+   YSTREAM=True
+   finalurl=STREAM
+   LOGGER.warning("YouTube Stream is set as STARTUP STREAM")
 elif STREAM.startswith("https://t.me/DumpPlaylist"):
-    try:
-        msg_id=STREAM.split("/", 4)[4]
-        finalurl=int(msg_id)
-        Y_PLAY=True
-        LOGGER.warning("YouTube Playlist is set as STARTUP STREAM")
-    except:
-        finalurl="http://j78dp346yq5r-hls-live.5centscdn.com/safari/live.stream/playlist.m3u8"
-        LOGGER.error("Unable to fetch youtube playlist, starting Safari TV")
-        pass
+   try:
+      msg_id=STREAM.split("/", 4)[4]
+      finalurl=int(msg_id)
+      Y_PLAY=True
+      LOGGER.warning("YouTube Playlist is set as STARTUP STREAM")
+   except:
+      finalurl="http://j78dp346yq5r-hls-live.5centscdn.com/safari/live.stream/playlist.m3u8"
+      LOGGER.error("Unable to fetch youtube playlist, starting Safari TV")
 else:
-    finalurl=STREAM
+   finalurl=STREAM
+
+
 
 class Config:
-    #Telegram API Stuffs
-    ADMIN = os.environ.get("ADMINS", '')
-    SUDO = [int(admin) for admin in (ADMIN).split()] # Exclusive for heroku vars configuration.
-    ADMINS = [int(admin) for admin in (ADMIN).split()] #group admins will be appended to this list.
-    API_ID = int(os.environ.get("API_ID", ''))
-    API_HASH = os.environ.get("API_HASH", "")
-    BOT_TOKEN = os.environ.get("BOT_TOKEN", "")     
-    SESSION = os.environ.get("SESSION_STRING", "")
-    BOT_USERNAME=None
+   #Telegram API Stuffs
+   ADMIN = os.environ.get("ADMINS", '')
+   SUDO = [int(admin) for admin in (ADMIN).split()] # Exclusive for heroku vars configuration.
+   ADMINS = [int(admin) for admin in (ADMIN).split()] #group admins will be appended to this list.
+   API_ID = int(os.environ.get("API_ID", ''))
+   API_HASH = os.environ.get("API_HASH", "")
+   BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
+   SESSION = os.environ.get("SESSION_STRING", "")
+   BOT_USERNAME=None
 
-    #Stream Chat and Log Group
-    CHAT = int(os.environ.get("CHAT", ""))
-    LOG_GROUP=os.environ.get("LOG_GROUP", "")
-    if LOG_GROUP:
-        LOG_GROUP=int(LOG_GROUP)
-    else:
-        LOG_GROUP=None
+   #Stream Chat and Log Group
+   CHAT = int(os.environ.get("CHAT", ""))
+   if LOG_GROUP := os.environ.get("LOG_GROUP", ""):
+      LOG_GROUP=int(LOG_GROUP)
+   else:
+      LOG_GROUP=None
 
-    #Stream 
-    STREAM_URL=finalurl
-    YPLAY=Y_PLAY
-    YSTREAM=YSTREAM
-    
-
-    #heroku
-    API_KEY=os.environ.get("HEROKU_API_KEY", None)
-    APP_NAME=os.environ.get("HEROKU_APP_NAME", None)
-    if not API_KEY or \
-       not APP_NAME:
-       HEROKU_APP=None
-    else:
-       HEROKU_APP=heroku3.from_key(API_KEY).apps()[APP_NAME]
+   #Stream 
+   STREAM_URL=finalurl
+   YPLAY=Y_PLAY
+   YSTREAM=YSTREAM
 
 
-    #Optional Configuration
-    SHUFFLE=bool(os.environ.get("SHUFFLE", True))
-    ADMIN_ONLY=os.environ.get("ADMIN_ONLY", "N")
-    REPLY_MESSAGE=os.environ.get("REPLY_MESSAGE", None)
-    if REPLY_MESSAGE:
-        REPLY_MESSAGE=REPLY_MESSAGE
-        LOGGER.warning("Reply Message Found, Enabled PM MSG")
-    else:
-        REPLY_MESSAGE=None
-    EDIT_TITLE = os.environ.get("EDIT_TITLE", True)
-    if EDIT_TITLE == "NO":
-        EDIT_TITLE=None
-        LOGGER.warning("Title Editing turned off")
+   #heroku
+   API_KEY=os.environ.get("HEROKU_API_KEY", None)
+   APP_NAME=os.environ.get("HEROKU_APP_NAME", None)
+   if not API_KEY or \
+      not APP_NAME:
+      HEROKU_APP=None
+   else:
+      HEROKU_APP=heroku3.from_key(API_KEY).apps()[APP_NAME]
 
-    #others
-    ADMIN_CACHE=False
-    playlist=[]
-    msg = {}
-    FFMPEG_PROCESSES={}
-    GET_FILE={}
-    DATA={}
-    STREAM_END={}
-    CALL_STATUS=False
-    PAUSE=False
-    MUTED=False
-    STREAM_LINK=False
-    DUR={}
-    HELP="""
+
+   #Optional Configuration
+   SHUFFLE=bool(os.environ.get("SHUFFLE", True))
+   ADMIN_ONLY=os.environ.get("ADMIN_ONLY", "N")
+   if REPLY_MESSAGE := os.environ.get("REPLY_MESSAGE", None):
+      REPLY_MESSAGE=REPLY_MESSAGE
+      LOGGER.warning("Reply Message Found, Enabled PM MSG")
+   else:
+      REPLY_MESSAGE=None
+   EDIT_TITLE = os.environ.get("EDIT_TITLE", True)
+   if EDIT_TITLE == "NO":
+       EDIT_TITLE=None
+       LOGGER.warning("Title Editing turned off")
+
+   #others
+   ADMIN_CACHE=False
+   playlist=[]
+   msg = {}
+   FFMPEG_PROCESSES={}
+   GET_FILE={}
+   DATA={}
+   STREAM_END={}
+   CALL_STATUS=False
+   PAUSE=False
+   MUTED=False
+   STREAM_LINK=False
+   DUR={}
+   HELP="""
 <b>How Can I Play Video?</b>
 
 You have file options.

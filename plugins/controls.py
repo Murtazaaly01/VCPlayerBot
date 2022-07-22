@@ -103,7 +103,7 @@ async def set_mute(_, m: Message):
         return await m.reply_text("Already muted.")
     k=await mute()
     if k:
-        await m.reply_text(f" 🔇 Succesfully Muted ")
+        await m.reply_text(" 🔇 Succesfully Muted ")
     else:
         await m.reply_text("Already muted.")
     
@@ -115,7 +115,7 @@ async def set_unmute(_, m: Message):
         return await m.reply("Stream already unmuted.")
     k=await unmute()
     if k:
-        await m.reply_text(f"🔊 Succesfully Unmuted ")
+        await m.reply_text("🔊 Succesfully Unmuted ")
     else:
         await m.reply_text("Not muted, already unmuted.")    
 
@@ -124,7 +124,7 @@ async def set_unmute(_, m: Message):
 async def replay_playout(client, m: Message):
     if not Config.CALL_STATUS:
         return await m.reply("Not Playing anything.")
-    await m.reply_text(f"Replaying from begining")
+    await m.reply_text("Replaying from begining")
     await restart_playout()
 
 
@@ -134,13 +134,12 @@ async def show_player(client, m: Message):
     if not data.get('dur', 0) or \
         data.get('dur') == 0:
         title="<b>Playing Live Stream</b>"
+    elif Config.playlist:
+        title=f"<b>{Config.playlist[0][1]}</b>"
+    elif Config.STREAM_LINK:
+        title=f"<b>Stream Using [Url]({data['file']}) </b>"
     else:
-        if Config.playlist:
-            title=f"<b>{Config.playlist[0][1]}</b>"
-        elif Config.STREAM_LINK:
-            title=f"<b>Stream Using [Url]({data['file']}) </b>"
-        else:
-            title=f"<b>Streaming Startup [stream]({Config.STREAM_URL})</b>"
+        title=f"<b>Streaming Startup [stream]({Config.STREAM_URL})</b>"
     if m.chat.type == "private":
         await m.reply_text(
             title,
@@ -161,7 +160,7 @@ async def show_player(client, m: Message):
 async def seek_playout(client, m: Message):
     if not Config.CALL_STATUS:
         return await m.reply("Not Playing anything.")
-    if not (Config.playlist or Config.STREAM_LINK):
+    if not Config.playlist and not Config.STREAM_LINK:
         return await m.reply("Startup stream cant be seeked.")
     data=Config.DATA.get('FILE_DATA')
     if not data.get('dur', 0) or \
@@ -179,13 +178,12 @@ async def seek_playout(client, m: Message):
         if not data.get('dur', 0) or \
             data.get('dur') == 0:
             title="<b>Playing Live Stream</b>"
+        elif Config.playlist:
+            title=f"<b>{Config.playlist[0][1]}</b>"
+        elif Config.STREAM_LINK:
+            title=f"<b>Stream Using [Url]({data['file']}</b>)"
         else:
-            if Config.playlist:
-                title=f"<b>{Config.playlist[0][1]}</b>"
-            elif Config.STREAM_LINK:
-                title=f"<b>Stream Using [Url]({data['file']}</b>)"
-            else:
-                title=f"<b>Streaming Startup [stream]({Config.STREAM_URL})</b>"
+            title=f"<b>Streaming Startup [stream]({Config.STREAM_URL})</b>"
         await m.reply(f"🎸{title}", reply_markup=await get_buttons(), disable_web_page_preview=True)
     else:
         await m.reply('No time specified')

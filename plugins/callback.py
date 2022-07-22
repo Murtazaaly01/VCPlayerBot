@@ -51,7 +51,7 @@ async def cb_handler(client: Client, query: CallbackQuery):
             await query.message.edit_reply_markup(reply_markup=await get_buttons())
         except MessageNotModified:
             pass
-    
+
     elif query.data.lower() == "resume":   
         if not Config.PAUSE:
             await query.answer("Nothing Paused to resume", show_alert=True)
